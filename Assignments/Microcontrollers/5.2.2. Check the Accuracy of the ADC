@@ -1,0 +1,106 @@
+/*
+ * ============================================================
+ * Project:     ESP8266 Battery Voltage Measurement
+ * Course:      EE 470 - Internet of Things
+ * Professor:   Dr. Farid
+ * Author:      Geovani Palomec
+ * Date:        10/6/26
+ * Version:     1.0
+ *
+ * Board:       NodeMCU 1.0 (ESP-12E Module)
+ * IDE:         VS Code + PlatformIO
+ *
+ * Description:
+ * Reads the external A0 voltage, prints it,
+ * then uses the external voltage-divider values
+ * to calculate and print the battery voltage.
+ * Takes 20 measurements total.
+ * ============================================================
+ */
+
+#include <Arduino.h>
+
+#define ADC_PIN A0
+
+// Actual measured external divider resistors
+const float R1 = 32758.0;   // Battery+ to A0
+const float R2 = 9910.0;    // A0 to GND
+
+// NodeMCU external A0 input range
+// NodeMCU board has its own onboard divider
+const float A0_MAX_VOLTAGE = 3.01;
+
+// 10-bit ADC
+const float ADC_MAX_COUNT = 1023.0;
+
+// Number of readings required
+const int NUM_SAMPLES = 20;
+
+
+// ------------------------------------------------------------
+// Read voltage physically present at the external A0 pin
+// ------------------------------------------------------------
+float readA0Voltage() {
+
+  int rawADC = analogRead(ADC_PIN);
+
+  float a0Voltage =
+      (rawADC / ADC_MAX_COUNT) * A0_MAX_VOLTAGE;
+
+  return a0Voltage;
+}
+
+
+// ------------------------------------------------------------
+// Calculate battery voltage from the divider output
+// ------------------------------------------------------------
+float calculateBatteryVoltage(float a0Voltage) {
+
+  float batteryVoltage =
+      a0Voltage * ((R1 + R2) / R2);
+
+  return batteryVoltage;
+}
+
+
+// ------------------------------------------------------------
+// Main setup
+// ------------------------------------------------------------
+void setup() {
+
+  Serial.begin(9600);
+  delay(3000);
+
+  Serial.println("Sample,A0 Voltage (V),Battery Voltage (V)");
+
+  for (int i = 1; i <= NUM_SAMPLES; i++) {
+
+    // Step 1: ESP measures the voltage at A0
+    float a0Voltage = readA0Voltage();
+
+    // Step 2: Use divider equation to reconstruct battery voltage
+    float batteryVoltage =
+        calculateBatteryVoltage(a0Voltage);
+
+    // Print both values
+    Serial.print(i);
+    Serial.print(",");
+
+    Serial.print(a0Voltage, 4);
+    Serial.print(",");
+
+    Serial.println(batteryVoltage, 4);
+
+    delay(1000);
+  }
+
+  Serial.println("DONE");
+}
+
+
+// ------------------------------------------------------------
+// Nothing repeats after 20 readings
+// ------------------------------------------------------------
+void loop() {
+
+}
