@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Control Your Pi</title>
+</head>
+<body>
+    <h1>Control Your Pi!</h1>
+    <p>TalkBack ID: 58484</p>
+
+    <h2>1. Send a Command</h2>
+    <form action="https://api.thingspeak.com/talkbacks/58484/commands.json"
+          target="_blank" method="post" rel="noopener">
+        <label>TalkBack API Key:
+            <input type="password" name="api_key" required>
+        </label>
+        <br><br>
+        <label>Command:
+            <select name="command_string">
+                <option value="ON">ON</option>
+                <option value="OFF">OFF</option>
+            </select>
+        </label>
+        <br><br>
+        <button type="submit">Send Command</button>
+    </form>
+
+    <h2>2. Check the Queue</h2>
+    <form action="https://api.thingspeak.com/talkbacks/58484/commands.json"
+          target="_blank" method="get" rel="noopener">
+        <label>TalkBack API Key:
+            <input type="password" name="api_key" required>
+        </label>
+        <br><br>
+        <button type="submit">Check Queue</button>
+    </form>
+
+    <h2>3. Remove the Next Queued Command</h2>
+    <p>This retrieves and consumes one command in your browser. It does not
+       turn the Pi LED on or off. Use it only when testing the queue manually.</p>
+    <form action="https://api.thingspeak.com/update"
+          target="_blank" method="get" rel="noopener">
+        <label>Channel Write API Key:
+            <input type="password" name="api_key" required>
+        </label>
+        <br><br>
+        <label>TalkBack API Key:
+            <input type="password" name="talkback_key" required>
+        </label>
+        <br><br>
+        <button type="submit">Remove Next Command</button>
+    </form>
+</body>
+</html>

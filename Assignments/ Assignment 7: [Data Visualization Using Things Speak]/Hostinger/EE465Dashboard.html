@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>EE465 Raspberry Pi Dashboard</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 24px; }
+        .dashboard { display: flex; flex-wrap: wrap; gap: 20px; }
+        section { width: 450px; max-width: 100%; }
+        h2 { font-size: 18px; }
+        iframe { box-sizing: border-box; width: 100%; height: 300px;
+                 border: 1px solid #ccc; }
+    </style>
+</head>
+<body>
+    <h1>Raspberry Pi Dashboard</h1>
+    <p>CPU temperature, CPU usage, calculated power, and average temperature.</p>
+    <p>The average uses up to the latest 20 temperature measurements since the Python program started.</p>
+
+    <h2>Control Raspberry Pi LED</h2>
+    <form action="https://api.thingspeak.com/talkbacks/58484/commands.json"
+          method="post" target="_blank" rel="noopener">
+        <label for="talkback-key">TalkBack API Key:</label>
+        <input id="talkback-key" type="password" name="api_key" required>
+        <br><br>
+        <button type="submit" name="command_string" value="ON">LED ON</button>
+        <button type="submit" name="command_string" value="OFF">LED OFF</button>
+    </form>
+    <p>Commands are queued. The Pi checks every 30 seconds, one command at a time.</p>
+
+    <div class="dashboard">
+        <section>
+            <h2>CPU Temperature</h2>
+            <iframe title="CPU temperature against date and time"
+                src="https://thingspeak.com/channels/3585180/charts/1?dynamic=true&amp;results=20&amp;type=line&amp;yaxis=Temperature%20%28C%29&amp;xaxis=Date%20and%20Time"></iframe>
+        </section>
+        <section>
+            <h2>CPU Usage</h2>
+            <iframe title="CPU usage against date and time"
+                src="https://thingspeak.com/channels/3585180/charts/2?dynamic=true&amp;results=20&amp;type=line&amp;yaxis=CPU%20Usage%20%28%25%29&amp;xaxis=Date%20and%20Time&amp;yaxismin=0&amp;yaxismax=100"></iframe>
+        </section>
+        <section>
+            <h2>Calculated Power</h2>
+            <iframe title="MATLAB calculated power against date and time"
+                src="https://thingspeak.com/apps/matlab_visualizations/690304"></iframe>
+        </section>
+        <section>
+            <h2>Average CPU Temperature</h2>
+            <iframe title="Average CPU temperature gauge"
+                src="https://thingspeak.com/channels/3585180/widgets/1335116"></iframe>
+        </section>
+    </div>
+</body>
+</html>
