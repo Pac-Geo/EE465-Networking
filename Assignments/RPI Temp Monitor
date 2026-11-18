@@ -1,0 +1,173 @@
+"""Button-triggered Raspberry Pi CPU temperature email alert."""
+
+from email.mime.text import MIMEText
+from pathlib import Path
+import re
+import shutil
+import smtplib
+import subprocess
+import time
+from typing import Callable
+
+
+# Configuration: replace these two values with your Gmail address and App Password.
+GMAIL_USER = "geovanipalomec@gmail.com"
+GMAIL_APP_PASSWORD = "lmhu ucwn zovd skrd"
+RECIPIENT_EMAIL = GMAIL_USER
+
+BUTTON_GPIO = 23
+BUTTON_BOUNCE_SECONDS = 0.05
+TEMPERATURE_THRESHOLD_CELSIUS = 40.0
+TEMPERATURE_CHECK_INTERVAL_SECONDS = 1.0
+GMAIL_SMTP_SERVER = "smtp.gmail.com"
+GMAIL_SMTP_PORT = 587
+SMTP_TIMEOUT_SECONDS = 15
+EMAIL_RETRY_DELAY_SECONDS = 3
+SYSFS_TEMPERATURE_PATH = Path("/sys/class/thermal/thermal_zone0/temp")
+VCGENCMD_LEGACY_PATH = Path("/opt/vc/bin/vcgencmd")
+
+
+def _parse_vcgencmd_temperature(output: str) -> float:
+    match = re.fullmatch(r"\s*temp=(-?\d+(?:\.\d+)?)'C\s*", output)
+    if match is None:
+        raise ValueError(f"Unexpected vcgencmd temperature output: {output!r}")
+    return float(match.group(1))
+
+
+def read_cpu_temperature_celsius() -> float:
+    try:
+        millidegrees = SYSFS_TEMPERATURE_PATH.read_text(encoding="ascii").strip()
+    except FileNotFoundError:
+        executable = shutil.which("vcgencmd")
+        if executable is None and VCGENCMD_LEGACY_PATH.is_file():
+            executable = str(VCGENCMD_LEGACY_PATH)
+        if executable is None:
+            raise RuntimeError(
+                "Cannot read CPU temperature: neither the thermal sysfs file nor "
+                "vcgencmd is available."
+            )
+
+        result = subprocess.run(
+            [executable, "measure_temp"],
+            check=True,
+            capture_output=True,
+            text=True,
+            timeout=5,
+        )
+        return _parse_vcgencmd_temperature(result.stdout)
+
+    return float(millidegrees) / 1000.0
+
+
+def monitor_until_overheated(
+    read_temperature: Callable[[], float] = read_cpu_temperature_celsius,
+    interval_seconds: float = TEMPERATURE_CHECK_INTERVAL_SECONDS,
+) -> float:
+    temperature = read_temperature()
+    print(f"CPU temperature: {temperature:.1f}°C")
+
+    while temperature <= TEMPERATURE_THRESHOLD_CELSIUS:
+        time.sleep(interval_seconds)
+        temperature = read_temperature()
+        print(f"CPU temperature: {temperature:.1f}°C")
+
+    return temperature
+
+
+def build_temperature_email(temperature_celsius: float) -> MIMEText:
+    body = (
+        f"CPU temperature exceeded {TEMPERATURE_THRESHOLD_CELSIUS:.0f}°C.\n"
+        f"CPU temperature: {temperature_celsius:.1f}°C.\n"
+        "Press the button to reactivate the system."
+    )
+    message = MIMEText(body, "plain")
+    message["Subject"] = "Raspberry Pi CPU temperature alert"
+    message["From"] = GMAIL_USER
+    message["To"] = RECIPIENT_EMAIL
+    return message
+
+
+def send_email_attempt(message: MIMEText) -> bool:
+    try:
+        with smtplib.SMTP(
+            GMAIL_SMTP_SERVER,
+            GMAIL_SMTP_PORT,
+            timeout=SMTP_TIMEOUT_SECONDS,
+        ) as smtp:
+            smtp.ehlo()
+ smtp.starttls()
+            smtp.ehlo()
+            smtp.login(GMAIL_USER, GMAIL_APP_PASSWORD)
+            refused_recipients = smtp.sendmail(
+                GMAIL_USER,
+                RECIPIENT_EMAIL,
+                message.as_string(),
+            )
+            if refused_recipients:
+                raise smtplib.SMTPRecipientsRefused(refused_recipients)
+    except (smtplib.SMTPException, OSError) as error:
+        print(f"Email attempt failed: {error}")
+        return False
+
+    return True
+
+
+def send_alert_with_retries(message: MIMEText) -> bool:
+    if send_email_attempt(message):
+        print("Email server accepted the alert.")
+        return True
+
+    time.sleep(EMAIL_RETRY_DELAY_SECONDS)
+    if send_email_attempt(message):
+        print("Email server accepted the alert.")
+        return True
+
+    time.sleep(EMAIL_RETRY_DELAY_SECONDS)
+    if send_email_attempt(message):
+        print("Email server accepted the alert.")
+        return True
+
+    time.sleep(EMAIL_RETRY_DELAY_SECONDS)
+    if send_email_attempt(message):
+        print("Email server accepted the alert.")
+        return True
+
+    print("ERROR: Email Sending Failed.")
+    print("NO FURTHER ATTEMPTS WILL BE MADE.")
+    print("Press the button to reactivate the system.")
+    return False
+
+
+def main() -> None:
+    from gpiozero import Button
+
+    button = Button(
+        BUTTON_GPIO,
+        pull_up=True,
+        bounce_time=BUTTON_BOUNCE_SECONDS,
+    )
+
+    try:
+        while True:
+            # WAITING FOR BUTTON
+            print(f"WAITING FOR BUTTON (GPIO {BUTTON_GPIO})")
+            button.wait_for_press()
+
+            # MONITOR UNTIL CPU TEMPERATURE EXCEEDS THE THRESHOLD
+            print("MONITORING CPU TEMPERATURE")
+            temperature = monitor_until_overheated()
+
+            # SEND ALERT, RETRY IF NEEDED, THEN WAIT FOR A NEW PRESS
+            message = build_temperature_email(temperature)
+            send_alert_with_retries(message)
+            button.wait_for_release()
+    except KeyboardInterrupt:
+        print("\nStopping temperature alert program.")
+    finally:
+        button.close()
+
+
+if __name__ == "__main__":
+    main()
+
+
